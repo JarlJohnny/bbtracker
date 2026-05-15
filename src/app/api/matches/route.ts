@@ -1,0 +1,126 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { calculateSppEarned, calculateLevel } from "@/lib/bb-data";
+
+const playerStatSchema = z.object({
+  playerId: z.string(),
+  touchdowns: z.number().int().min(0),
+  completions: z.number().int().min(0),
+  interceptions: z.number().int().min(0),
+  casualties: z.number().int().min(0),
+  mvp: z.boolean(),
+});
+
+const matchSchema = z.object({
+  homeTeamId: z.string(),
+  awayTeamId: z.string(),
+  homeScore: z.number().int().min(0),
+  awayScore: z.number().int().min(0),
+  leagueId: z.string().optional(),
+  round: z.number().int().optional(),
+  weather: z.string().optional(),
+  notes: z.string().optional(),
+  homePlayerStats: z.array(playerStatSchema),
+  awayPlayerStats: z.array(playerStatSchema),
+});
+
+export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json();
+  const parsed = matchSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+
+  const { homeTeamId, awayTeamId, homeScore, awayScore, leagueId, round, weather, notes, homePlayerStats, awayPlayerStats } = parsed.data;
+
+  const homeTeam = await prisma.team.findFirst({ where: { id: homeTeamId, userId: session.user.id } });
+  if (!homeTeam) return NextResponse.json({ error: "Home team not found or not yours" }, { status: 403 });
+
+  const allStats = [...homePlayerStats, ...awayPlayerStats];
+
+  const match = await prisma.$transaction(async (tx) => {
+    const match = await tx.match.create({
+      data: {
+        homeTeamId,
+        awayTeamId,
+        homeScore,
+        awayScore,
+        leagueId: leagueId || null,
+        round: round || null,
+        weather: weather || null,
+        notes: notes || null,
+        status: "completed",
+        playedAt: new Date(),
+      },
+    });
+
+    for (const stat of allStats) {
+      const sppEarned = calculateSppEarned(stat);
+      await tx.matchPlayerStat.create({
+        data: {
+          matchId: match.id,
+          playerId: stat.playerId,
+          touchdowns: stat.touchdowns,
+          completions: stat.completions,
+          interceptions: stat.interceptions,
+          casualties: stat.casualties,
+          mvp: stat.mvp,
+          sppEarned,
+        },
+      });
+
+      const player = await tx.player.findUnique({ where: { id: stat.playerId } });
+      if (player && !player.isDead && !player.isRetired) {
+        const newSpp = player.spp + sppEarned;
+        const newLevel = calculateLevel(newSpp);
+        await tx.player.update({
+          where: { id: stat.playerId },
+          data: { spp: newSpp, level: newLevel },
+        });
+      }
+    }
+
+    // Update team records
+    const homeTds = homeScore;
+    const awayTds = awayScore;
+    const homeWin = homeScore > awayScore;
+    const awayWin = awayScore > homeScore;
+    const draw = homeScore === awayScore;
+
+    const homeCasualties = homePlayerStats.reduce((s, p) => s + p.casualties, 0);
+    const awayCasualties = awayPlayerStats.reduce((s, p) => s + p.casualties, 0);
+
+    await tx.team.update({
+      where: { id: homeTeamId },
+      data: {
+        wins: { increment: homeWin ? 1 : 0 },
+        draws: { increment: draw ? 1 : 0 },
+        losses: { increment: awayWin ? 1 : 0 },
+        touchdownsFor: { increment: homeTds },
+        touchdownsAgainst: { increment: awayTds },
+        casualtiesFor: { increment: homeCasualties },
+        leaguePoints: { increment: homeWin ? 3 : draw ? 1 : 0 },
+      },
+    });
+
+    await tx.team.update({
+      where: { id: awayTeamId },
+      data: {
+        wins: { increment: awayWin ? 1 : 0 },
+        draws: { increment: draw ? 1 : 0 },
+        losses: { increment: homeWin ? 1 : 0 },
+        touchdownsFor: { increment: awayTds },
+        touchdownsAgainst: { increment: homeTds },
+        casualtiesFor: { increment: awayCasualties },
+        leaguePoints: { increment: awayWin ? 3 : draw ? 1 : 0 },
+      },
+    });
+
+    return match;
+  });
+
+  return NextResponse.json(match, { status: 201 });
+}

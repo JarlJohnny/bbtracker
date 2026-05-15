@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  teams         Team[]
+  leagueMembers LeagueMember[]
+  createdLeagues League[]
+}
+
+model League {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  status      String       @default("setup")
+  season      Int          @default(1)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  creatorId   String
+  creator     User         @relation(fields: [creatorId], references: [id])
+
+  members     LeagueMember[]
+  teams       Team[]
+  matches     Match[]
+}
+
+model LeagueMember {
+  id       String @id @default(cuid())
+  role     String @default("coach")
+
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+
+  leagueId String
+  league   League @relation(fields: [leagueId], references: [id])
+
+  @@unique([userId, leagueId])
+}
+
+model Team {
+  id               String   @id @default(cuid())
+  name             String
+  race             String
+  treasury         Int      @default(1000000)
+  rerolls          Int      @default(0)
+  assistantCoaches Int      @default(0)
+  cheerleaders     Int      @default(0)
+  hasApothecary    Boolean  @default(false)
+  dedicatedFans    Int      @default(1)
+  teamValue        Int      @default(0)
+  currentTeamValue Int      @default(0)
+  wins             Int      @default(0)
+  losses           Int      @default(0)
+  draws            Int      @default(0)
+  touchdownsFor    Int      @default(0)
+  touchdownsAgainst Int     @default(0)
+  casualtiesFor    Int      @default(0)
+  leaguePoints     Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+
+  leagueId         String?
+  league           League?  @relation(fields: [leagueId], references: [id])
+
+  players          Player[]
+  homeMatches      Match[]  @relation("HomeTeam")
+  awayMatches      Match[]  @relation("AwayTeam")
+}
+
+model Player {
+  id                String   @id @default(cuid())
+  number            Int
+  name              String
+  position          String
+  race              String
+  ma                Int
+  st                Int
+  ag                Int
+  pa                Int
+  av                Int
+  skills            String   @default("[]")
+  injuries          String   @default("[]")
+  spp               Int      @default(0)
+  level             String   @default("Rookie")
+  cost              Int
+  isJourneyman      Boolean  @default(false)
+  isMissingNextGame Boolean  @default(false)
+  isDead            Boolean  @default(false)
+  isRetired         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  teamId            String
+  team              Team     @relation(fields: [teamId], references: [id])
+
+  matchStats        MatchPlayerStat[]
+  improvements      PlayerImprovement[]
+}
+
+model Match {
+  id          String    @id @default(cuid())
+  round       Int?
+  status      String    @default("scheduled")
+  homeScore   Int       @default(0)
+  awayScore   Int       @default(0)
+  weather     String?
+  notes       String?
+  playedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  homeTeamId  String
+  homeTeam    Team      @relation("HomeTeam", fields: [homeTeamId], references: [id])
+
+  awayTeamId  String
+  awayTeam    Team      @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  leagueId    String?
+  league      League?   @relation(fields: [leagueId], references: [id])
+
+  playerStats MatchPlayerStat[]
+}
+
+model MatchPlayerStat {
+  id            String  @id @default(cuid())
+  touchdowns    Int     @default(0)
+  completions   Int     @default(0)
+  interceptions Int     @default(0)
+  casualties    Int     @default(0)
+  mvp           Boolean @default(false)
+  sppEarned     Int     @default(0)
+
+  matchId       String
+  match         Match   @relation(fields: [matchId], references: [id])
+
+  playerId      String
+  player        Player  @relation(fields: [playerId], references: [id])
+
+  @@unique([matchId, playerId])
+}
+
+model PlayerImprovement {
+  id        String   @id @default(cuid())
+  type      String
+  value     String
+  sppSpent  Int
+  createdAt DateTime @default(now())
+
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id])
+
+  matchId   String?
+}
