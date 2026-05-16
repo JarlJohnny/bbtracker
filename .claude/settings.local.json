@@ -9,7 +9,10 @@
       "Read(//tmp/**)",
       "PowerShell(Receive-Job *)",
       "Bash(npx tsc *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(npx prisma *)",
+      "Bash(curl *)",
+      "Bash(echo \"Exit: $?\")"
     ]
   }
 }
