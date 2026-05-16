@@ -11,7 +11,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const player = await prisma.player.findFirst({
     where: { id },
-    include: { team: { select: { userId: true } } },
+    include: {
+      team: { select: { userId: true } },
+      improvements: { orderBy: { createdAt: "asc" } },
+    },
   });
 
   if (!player || player.team.userId !== session.user.id) {

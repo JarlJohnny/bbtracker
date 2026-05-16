@@ -336,6 +336,66 @@ export const SPP_ADVANCEMENT_COST: Record<string, number> = {
   Legend: 256,
 };
 
+// SPP thresholds that grant an advancement (in order)
+export const SPP_THRESHOLDS = [6, 16, 31, 51, 76, 176];
+
+// How much each advancement type increases Team Value (BB2020 rulebook p.100)
+export const IMPROVEMENT_TV_COST: Record<string, number> = {
+  random_primary: 10000,
+  chosen_primary: 20000,
+  chosen_secondary: 30000,
+  stat_ma: 10000,
+  stat_av: 10000,
+  stat_pa: 10000,
+  stat_ag: 20000,
+  stat_st: 30000,
+};
+
+export const IMPROVEMENT_LABELS: Record<string, string> = {
+  random_primary: "Random Primary Skill",
+  chosen_primary: "Chosen Primary Skill",
+  chosen_secondary: "Chosen Secondary Skill",
+  stat_ma: "+1 MA",
+  stat_av: "+1 AV",
+  stat_pa: "-1 PA (improve)",
+  stat_ag: "-1 AG (improve)",
+  stat_st: "+1 ST",
+};
+
+// Skills available per category (BB2020)
+export const SKILLS_BY_CATEGORY: Record<SkillCategory, string[]> = {
+  G: [
+    "Block", "Dauntless", "Dirty Player (+1)", "Fend", "Frenzy", "Jump Up",
+    "Kick", "Pro", "Shadowing", "Strip Ball", "Sure Hands", "Tackle", "Wrestle",
+  ],
+  A: [
+    "Catch", "Diving Catch", "Diving Tackle", "Dodge", "Leap", "On the Ball",
+    "Pass Block", "Safe Pair of Hands", "Side Step", "Sneaky Git", "Sprint", "Sure Feet",
+  ],
+  P: [
+    "Accurate", "Dump-Off", "Hail Mary Pass", "Nerves of Steel", "Pass",
+    "Running Pass", "Strong Arm",
+  ],
+  S: [
+    "Arm Bar", "Brawler", "Break Tackle", "Grab", "Guard", "Juggernaut",
+    "Mighty Blow (+1)", "Multiple Block", "Pile On", "Stand Firm", "Thick Skull",
+  ],
+  M: [
+    "Big Hand", "Claws", "Disturbing Presence", "Extra Arms", "Foul Appearance",
+    "Horns", "Iron Hard Skin", "Monstrous Mouth", "Prehensile Tail",
+    "Tentacles", "Two Heads", "Very Long Legs",
+  ],
+};
+
+export function getPositionData(race: string, position: string) {
+  return RACES[race]?.positions.find((p) => p.position === position) ?? null;
+}
+
+export function pendingAdvancements(spp: number, improvementCount: number): number {
+  const eligible = SPP_THRESHOLDS.filter((t) => spp >= t).length;
+  return Math.max(0, eligible - improvementCount);
+}
+
 export function calculateLevel(spp: number): string {
   for (const level of SPP_LEVELS) {
     if (spp >= level.min && spp <= level.max) return level.name;

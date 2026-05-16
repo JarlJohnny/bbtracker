@@ -7,7 +7,9 @@
       "Read(//mnt/d/kildekode/**)",
       "Bash(npm run *)",
       "Read(//tmp/**)",
-      "PowerShell(Receive-Job *)"
+      "PowerShell(Receive-Job *)",
+      "Bash(npx tsc *)",
+      "Bash(node *)"
     ]
   }
 }

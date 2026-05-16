@@ -18,6 +18,8 @@ const matchSchema = z.object({
   awayTeamId: z.string(),
   homeScore: z.number().int().min(0),
   awayScore: z.number().int().min(0),
+  homeGold: z.number().int().min(0).default(0),
+  awayGold: z.number().int().min(0).default(0),
   leagueId: z.string().optional(),
   round: z.number().int().optional(),
   weather: z.string().optional(),
@@ -34,7 +36,12 @@ export async function POST(req: NextRequest) {
   const parsed = matchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { homeTeamId, awayTeamId, homeScore, awayScore, leagueId, round, weather, notes, homePlayerStats, awayPlayerStats } = parsed.data;
+  const {
+    homeTeamId, awayTeamId, homeScore, awayScore,
+    homeGold, awayGold,
+    leagueId, round, weather, notes,
+    homePlayerStats, awayPlayerStats,
+  } = parsed.data;
 
   const homeTeam = await prisma.team.findFirst({ where: { id: homeTeamId, userId: session.user.id } });
   if (!homeTeam) return NextResponse.json({ error: "Home team not found or not yours" }, { status: 403 });
@@ -75,21 +82,16 @@ export async function POST(req: NextRequest) {
       const player = await tx.player.findUnique({ where: { id: stat.playerId } });
       if (player && !player.isDead && !player.isRetired) {
         const newSpp = player.spp + sppEarned;
-        const newLevel = calculateLevel(newSpp);
         await tx.player.update({
           where: { id: stat.playerId },
-          data: { spp: newSpp, level: newLevel },
+          data: { spp: newSpp, level: calculateLevel(newSpp) },
         });
       }
     }
 
-    // Update team records
-    const homeTds = homeScore;
-    const awayTds = awayScore;
     const homeWin = homeScore > awayScore;
     const awayWin = awayScore > homeScore;
     const draw = homeScore === awayScore;
-
     const homeCasualties = homePlayerStats.reduce((s, p) => s + p.casualties, 0);
     const awayCasualties = awayPlayerStats.reduce((s, p) => s + p.casualties, 0);
 
@@ -99,10 +101,11 @@ export async function POST(req: NextRequest) {
         wins: { increment: homeWin ? 1 : 0 },
         draws: { increment: draw ? 1 : 0 },
         losses: { increment: awayWin ? 1 : 0 },
-        touchdownsFor: { increment: homeTds },
-        touchdownsAgainst: { increment: awayTds },
+        touchdownsFor: { increment: homeScore },
+        touchdownsAgainst: { increment: awayScore },
         casualtiesFor: { increment: homeCasualties },
         leaguePoints: { increment: homeWin ? 3 : draw ? 1 : 0 },
+        treasury: { increment: homeGold },
       },
     });
 
@@ -112,10 +115,11 @@ export async function POST(req: NextRequest) {
         wins: { increment: awayWin ? 1 : 0 },
         draws: { increment: draw ? 1 : 0 },
         losses: { increment: homeWin ? 1 : 0 },
-        touchdownsFor: { increment: awayTds },
-        touchdownsAgainst: { increment: homeTds },
+        touchdownsFor: { increment: awayScore },
+        touchdownsAgainst: { increment: homeScore },
         casualtiesFor: { increment: awayCasualties },
         leaguePoints: { increment: awayWin ? 3 : draw ? 1 : 0 },
+        treasury: { increment: awayGold },
       },
     });
 

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { formatGold, RACE_COLORS, SPP_LEVELS } from "@/lib/bb-data";
 import Link from "next/link";
 import { ChevronLeft, Plus, Skull, AlertTriangle, Star } from "lucide-react";
+import { TeamManagement } from "@/components/team-management";
 
 function statDisplay(val: number, isPa = false) {
   if (isPa && val === -1) return "-";
@@ -117,6 +118,18 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
           </div>
         ))}
       </div>
+
+      {/* Team Management */}
+      <TeamManagement
+        teamId={team.id}
+        race={team.race}
+        treasury={team.treasury}
+        rerolls={team.rerolls}
+        dedicatedFans={team.dedicatedFans}
+        assistantCoaches={team.assistantCoaches}
+        cheerleaders={team.cheerleaders}
+        hasApothecary={team.hasApothecary}
+      />
 
       {/* Roster */}
       <div className="bg-stone-900 border border-stone-700 rounded-xl overflow-hidden">
