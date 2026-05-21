@@ -41,7 +41,7 @@ export const RACES: Record<string, RaceData> = {
     canHaveApothecary: true,
     specialRules: ["Badlands Brawl", "Bribery and Corruption"],
     positions: [
-      { position: "Goblin Bruiser", qty: 4, cost: 40000, ma: 6, st: 2, ag: 3, pa: 4, av: 8, skills: ["Dodge", "Right Stuff", "Stunty"], primary: ["A"], secondary: ["G", "S"] },
+      { position: "Goblin Bruiser", qty: 16, cost: 40000, ma: 6, st: 2, ag: 3, pa: 4, av: 8, skills: ["Dodge", "Right Stuff", "Stunty"], primary: ["A"], secondary: ["G", "S"] },
       { position: "Black Orc Blocker", qty: 6, cost: 90000, ma: 4, st: 4, ag: 4, pa: 5, av: 10, skills: ["Brawler", "Grab"], primary: ["G", "S"], secondary: ["A"] },
       { position: "Trained Troll", qty: 1, cost: 115000, ma: 4, st: 5, ag: 5, pa: -1, av: 10, skills: ["Loner (4+)", "Always Hungry", "Mighty Blow (+1)", "Projectile Vomit", "Really Stupid", "Regeneration", "Throw Team-mate"], primary: ["S"], secondary: ["G"] },
     ],
