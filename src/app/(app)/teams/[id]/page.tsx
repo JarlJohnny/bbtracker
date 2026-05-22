@@ -5,6 +5,7 @@ import { formatGold, RACE_COLORS, SPP_LEVELS } from "@/lib/bb-data";
 import Link from "next/link";
 import { ChevronLeft, Plus, Skull, AlertTriangle, Star } from "lucide-react";
 import { TeamManagement } from "@/components/team-management";
+import { SkillBadge } from "@/components/skill-badge";
 
 function statDisplay(val: number, isPa = false) {
   if (isPa && val === -1) return "-";
@@ -183,11 +184,11 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
                     <td className="px-2 py-2.5 hidden lg:table-cell">
                       <div className="flex flex-wrap gap-1">
                         {skills.slice(0, 4).map((s) => (
-                          <span key={s} className="bg-stone-700 text-stone-300 text-xs px-1.5 py-0.5 rounded">{s}</span>
+                          <SkillBadge key={s} skill={s} size="sm" />
                         ))}
                         {skills.length > 4 && <span className="text-stone-500 text-xs">+{skills.length - 4}</span>}
                         {injuries.map((inj) => (
-                          <span key={inj} className="bg-red-900/40 text-red-400 text-xs px-1.5 py-0.5 rounded">{inj}</span>
+                          <SkillBadge key={inj} skill={inj} size="sm" variant="injury" />
                         ))}
                       </div>
                     </td>

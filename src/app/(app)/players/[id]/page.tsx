@@ -14,6 +14,7 @@ import {
   formatGold,
   type SkillCategory,
 } from "@/lib/bb-data";
+import { SkillBadge } from "@/components/skill-badge";
 
 interface Improvement {
   id: string;
@@ -382,19 +383,12 @@ export default function PlayerPage() {
           {skills.map((skill) => {
             const isImproved = player.improvements.some((i) => i.value === skill);
             return (
-              <span
+              <SkillBadge
                 key={skill}
-                className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
-                  isImproved
-                    ? "bg-amber-500/20 border border-amber-500/40 text-amber-300"
-                    : "bg-stone-700 text-stone-200"
-                }`}
-              >
-                {skill}
-                {editing && (
-                  <button onClick={() => setSkills(skills.filter((s) => s !== skill))} className="text-stone-400 hover:text-red-400 ml-1">×</button>
-                )}
-              </span>
+                skill={skill}
+                variant={isImproved ? "improved" : "default"}
+                onRemove={editing ? () => setSkills(skills.filter((s) => s !== skill)) : undefined}
+              />
             );
           })}
           {skills.length === 0 && <span className="text-stone-500 text-sm">No skills</span>}
