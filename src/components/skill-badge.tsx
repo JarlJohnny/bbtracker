@@ -43,21 +43,23 @@ export function SkillBadge({
       {description && (
         <span
           className={[
-            // positioning — appears above, centred on the badge
-            "absolute bottom-full left-1/2 -translate-x-1/2 mb-2",
-            // layout
+            // sm badges are inside overflow-x-auto tables — tooltip below avoids top clipping
+            size === "sm"
+              ? "absolute top-full left-1/2 -translate-x-1/2 mt-2"
+              : "absolute bottom-full left-1/2 -translate-x-1/2 mb-2",
             "w-56 z-50 pointer-events-none",
-            // appearance
             "rounded-lg bg-stone-800 border border-stone-600 shadow-xl",
             "px-3 py-2 text-xs text-stone-200 leading-relaxed",
-            // visibility toggle
             "opacity-0 group-hover/skill:opacity-100 transition-opacity duration-150",
           ].join(" ")}
         >
           <span className="block font-semibold text-white mb-1">{skill}</span>
           {description}
-          {/* downward triangle arrow */}
-          <span className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-stone-600" />
+          {size === "sm" ? (
+            <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-b-stone-600" />
+          ) : (
+            <span className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-stone-600" />
+          )}
         </span>
       )}
     </span>
