@@ -86,6 +86,7 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
   const [homeD3, setHomeD3] = useState(1);
   const [awayD3, setAwayD3] = useState(1);
   const [reviewNotes, setReviewNotes] = useState("");
+  const [finishError, setFinishError] = useState("");
 
   const refreshMatch = useCallback(async () => {
     const res = await fetch(`/api/matches/${match.id}`);
@@ -179,27 +180,35 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
   }
 
   async function finishMatch() {
+    setFinishError("");
     setLoading(true);
     const homeWin = finalHome > finalAway;
     const awayWin = finalAway > finalHome;
     const homeGold = (homeD3 + (homeWin ? 1 : 0)) * 10000;
     const awayGold = (awayD3 + (awayWin ? 1 : 0)) * 10000;
 
-    const res = await fetch(`/api/matches/${match.id}/finish`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        homeScore: finalHome, awayScore: finalAway,
-        homeGold, awayGold,
-        homeMvpPlayerId: homeMvpId || undefined,
-        awayMvpPlayerId: awayMvpId || undefined,
-        notes: reviewNotes || undefined,
-      }),
-    });
-    setLoading(false);
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/matches/${match.id}/finish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          homeScore: finalHome, awayScore: finalAway,
+          homeGold, awayGold,
+          homeMvpPlayerId: homeMvpId || undefined,
+          awayMvpPlayerId: awayMvpId || undefined,
+          notes: reviewNotes || undefined,
+        }),
+      });
       const data = await res.json();
+      if (!res.ok) {
+        setFinishError(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+        setLoading(false);
+        return;
+      }
       router.push(`/teams/${data.homeTeamId}`);
+    } catch (err) {
+      setFinishError(err instanceof Error ? err.message : "Network error");
+      setLoading(false);
     }
   }
 
@@ -376,6 +385,12 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
             placeholder="Any notes about the match..."
           />
         </div>
+
+        {finishError && (
+          <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded-lg px-3 py-2 break-all">
+            {finishError}
+          </div>
+        )}
 
         <button
           onClick={finishMatch}

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Aggregate stats per player
+  // Aggregate stats per player from events
   const spp: Record<string, number> = {};
   const tds: Record<string, number> = {};
   const cas: Record<string, number> = {};
@@ -50,9 +50,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!evt.playerId) continue;
     const gain = SPP_FOR[evt.type] ?? 0;
     spp[evt.playerId] = (spp[evt.playerId] ?? 0) + gain;
-    if (evt.type === "touchdown") tds[evt.playerId] = (tds[evt.playerId] ?? 0) + 1;
-    if (evt.type === "casualty") cas[evt.playerId] = (cas[evt.playerId] ?? 0) + 1;
-    if (evt.type === "completion") comp[evt.playerId] = (comp[evt.playerId] ?? 0) + 1;
+    if (evt.type === "touchdown")    tds[evt.playerId]  = (tds[evt.playerId]  ?? 0) + 1;
+    if (evt.type === "casualty")     cas[evt.playerId]  = (cas[evt.playerId]  ?? 0) + 1;
+    if (evt.type === "completion")   comp[evt.playerId] = (comp[evt.playerId] ?? 0) + 1;
     if (evt.type === "interception") intc[evt.playerId] = (intc[evt.playerId] ?? 0) + 1;
   }
   if (homeMvpPlayerId) spp[homeMvpPlayerId] = (spp[homeMvpPlayerId] ?? 0) + 4;
@@ -60,89 +60,104 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const homeWin = homeScore > awayScore;
   const awayWin = awayScore > homeScore;
-  const draw = homeScore === awayScore;
+  const draw    = homeScore === awayScore;
   const homeCas = match.events.filter((e) => e.type === "casualty" && e.teamSide === "home").length;
   const awayCas = match.events.filter((e) => e.type === "casualty" && e.teamSide === "away").length;
 
-  await prisma.$transaction(async (tx) => {
-    // Apply injuries from casualty events
-    const injuries = match.events.filter(
+  try {
+    // Apply injuries (outside transaction to avoid long-running interactive tx issues)
+    const injuryEvents = match.events.filter(
       (e) => e.type === "casualty" && e.targetId && e.injuryResult && e.injuryResult !== "badly_hurt"
     );
-    for (const evt of injuries) {
-      const target = await tx.player.findUnique({ where: { id: evt.targetId! } });
+    for (const evt of injuryEvents) {
+      const target = await prisma.player.findUnique({ where: { id: evt.targetId! } });
       if (!target || target.isDead || target.isRetired) continue;
 
       const injs: string[] = JSON.parse(target.injuries);
       let update: Record<string, unknown> = {};
 
       switch (evt.injuryResult) {
-        case "mng":    update = { isMissingNextGame: true }; break;
-        case "dead":   update = { isDead: true }; break;
+        case "mng":      update = { isMissingNextGame: true }; break;
+        case "dead":     update = { isDead: true }; break;
         case "niggling": injs.push("Niggling Injury"); update = { injuries: JSON.stringify(injs) }; break;
-        case "-MA":    injs.push("-1 MA"); update = { ma: Math.max(1, target.ma - 1), injuries: JSON.stringify(injs) }; break;
-        case "-ST":    injs.push("-1 ST"); update = { st: Math.max(1, target.st - 1), injuries: JSON.stringify(injs) }; break;
-        case "-AG":    injs.push("-1 AG"); update = { ag: Math.min(6, target.ag + 1), injuries: JSON.stringify(injs) }; break;
-        case "-PA":    if (target.pa !== -1) { injs.push("-1 PA"); update = { pa: Math.min(6, target.pa + 1), injuries: JSON.stringify(injs) }; } break;
-        case "-AV":    injs.push("-1 AV"); update = { av: Math.max(3, target.av - 1), injuries: JSON.stringify(injs) }; break;
+        case "-MA":      injs.push("-1 MA"); update = { ma: Math.max(1, target.ma - 1), injuries: JSON.stringify(injs) }; break;
+        case "-ST":      injs.push("-1 ST"); update = { st: Math.max(1, target.st - 1), injuries: JSON.stringify(injs) }; break;
+        case "-AG":      injs.push("-1 AG"); update = { ag: Math.min(6, target.ag + 1),  injuries: JSON.stringify(injs) }; break;
+        case "-PA":      if (target.pa !== -1) { injs.push("-1 PA"); update = { pa: Math.min(6, target.pa + 1), injuries: JSON.stringify(injs) }; } break;
+        case "-AV":      injs.push("-1 AV"); update = { av: Math.max(3, target.av - 1), injuries: JSON.stringify(injs) }; break;
       }
-      if (Object.keys(update).length) await tx.player.update({ where: { id: evt.targetId! }, data: update });
+      if (Object.keys(update).length) {
+        await prisma.player.update({ where: { id: evt.targetId! }, data: update });
+      }
     }
 
-    // Update player SPP + create stats
+    // Update player SPP + create match stats
     for (const [playerId, earned] of Object.entries(spp)) {
-      const player = await tx.player.findUnique({ where: { id: playerId } });
+      const player = await prisma.player.findUnique({ where: { id: playerId } });
       if (!player || player.isDead || player.isRetired) continue;
       const newSpp = player.spp + earned;
-      await tx.player.update({ where: { id: playerId }, data: { spp: newSpp, level: calculateLevel(newSpp) } });
-      await tx.matchPlayerStat.upsert({
-        where: { matchId_playerId: { matchId: id, playerId } },
-        create: {
-          matchId: id, playerId,
-          touchdowns: tds[playerId] ?? 0,
-          completions: comp[playerId] ?? 0,
+      await prisma.player.update({
+        where: { id: playerId },
+        data: { spp: newSpp, level: calculateLevel(newSpp) },
+      });
+      await prisma.matchPlayerStat.create({
+        data: {
+          matchId: id,
+          playerId,
+          touchdowns:    tds[playerId]  ?? 0,
+          completions:   comp[playerId] ?? 0,
           interceptions: intc[playerId] ?? 0,
-          casualties: cas[playerId] ?? 0,
+          casualties:    cas[playerId]  ?? 0,
           mvp: playerId === homeMvpPlayerId || playerId === awayMvpPlayerId,
           sppEarned: earned,
         },
-        update: {},
       });
     }
 
     // Update team records
-    await tx.team.update({
+    await prisma.team.update({
       where: { id: match.homeTeamId },
       data: {
-        wins: { increment: homeWin ? 1 : 0 },
-        draws: { increment: draw ? 1 : 0 },
-        losses: { increment: awayWin ? 1 : 0 },
-        touchdownsFor: { increment: homeScore },
+        wins:              { increment: homeWin ? 1 : 0 },
+        draws:             { increment: draw    ? 1 : 0 },
+        losses:            { increment: awayWin ? 1 : 0 },
+        touchdownsFor:     { increment: homeScore },
         touchdownsAgainst: { increment: awayScore },
-        casualtiesFor: { increment: homeCas },
-        leaguePoints: { increment: homeWin ? 3 : draw ? 1 : 0 },
-        treasury: { increment: homeGold },
+        casualtiesFor:     { increment: homeCas },
+        leaguePoints:      { increment: homeWin ? 3 : draw ? 1 : 0 },
+        treasury:          { increment: homeGold },
       },
     });
-    await tx.team.update({
+    await prisma.team.update({
       where: { id: match.awayTeamId },
       data: {
-        wins: { increment: awayWin ? 1 : 0 },
-        draws: { increment: draw ? 1 : 0 },
-        losses: { increment: homeWin ? 1 : 0 },
-        touchdownsFor: { increment: awayScore },
+        wins:              { increment: awayWin ? 1 : 0 },
+        draws:             { increment: draw    ? 1 : 0 },
+        losses:            { increment: homeWin ? 1 : 0 },
+        touchdownsFor:     { increment: awayScore },
         touchdownsAgainst: { increment: homeScore },
-        casualtiesFor: { increment: awayCas },
-        leaguePoints: { increment: awayWin ? 3 : draw ? 1 : 0 },
-        treasury: { increment: awayGold },
+        casualtiesFor:     { increment: awayCas },
+        leaguePoints:      { increment: awayWin ? 3 : draw ? 1 : 0 },
+        treasury:          { increment: awayGold },
       },
     });
 
-    await tx.match.update({
+    // Close match
+    await prisma.match.update({
       where: { id },
-      data: { status: "completed", homeScore, awayScore, notes: notes ?? null, playedAt: new Date() },
+      data: {
+        status:    "completed",
+        homeScore,
+        awayScore,
+        notes:     notes ?? null,
+        playedAt:  new Date(),
+      },
     });
-  });
+  } catch (err) {
+    console.error("finish match error:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, homeTeamId: match.homeTeamId });
 }
