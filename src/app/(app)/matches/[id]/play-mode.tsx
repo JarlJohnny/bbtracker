@@ -98,6 +98,14 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
     }
   }, [match.id]);
 
+  const patch = useCallback((body: object) => {
+    fetch(`/api/matches/${match.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }, [match.id]);
+
   // Compute running SPP from events
   const sppByPlayer: Record<string, number> = {};
   for (const evt of match.events) {
@@ -111,72 +119,85 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
 
   async function logEvent() {
     if (!modal) return;
+    const type = modal;
     const players = evtTeam === "home" ? match.homeTeam.players : match.awayTeam.players;
     const player = players.find((p) => p.id === evtPlayerId);
     const targetPlayers = evtTargetTeam === "home" ? match.homeTeam.players : match.awayTeam.players;
     const target = targetPlayers.find((p) => p.id === evtTargetId);
+    const side = evtTeam;
+    const injury = evtInjury;
 
-    setLoading(true);
+    const body = {
+      type,
+      teamSide: side,
+      playerId: player?.id ?? null,
+      playerName: player ? `#${player.number} ${player.name}` : null,
+      targetId: type === "casualty" ? (target?.id ?? null) : null,
+      targetName: type === "casualty" ? (target ? `#${target.number} ${target.name}` : null) : null,
+      injuryResult: type === "casualty" ? injury : null,
+    };
+
+    // Optimistic update — close modal and update state immediately
+    const tempId = `temp-${Date.now()}`;
+    setMatch((prev) => ({
+      ...prev,
+      events: [...prev.events, { id: tempId, half: prev.half, turn: prev.turn, ...body }],
+      homeScore: type === "touchdown" && side === "home" ? prev.homeScore + 1 : prev.homeScore,
+      awayScore: type === "touchdown" && side === "away" ? prev.awayScore + 1 : prev.awayScore,
+    }));
+    setModal(null);
+    setEvtPlayerId("");
+    setEvtTargetId("");
+    setEvtInjury("badly_hurt");
+
+    // Sync in background — replace temp with real event (has a real ID for undo)
     const res = await fetch(`/api/matches/${match.id}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: modal,
-        teamSide: evtTeam,
-        playerId: player?.id ?? null,
-        playerName: player ? `#${player.number} ${player.name}` : null,
-        targetId: modal === "casualty" ? (target?.id ?? null) : null,
-        targetName: modal === "casualty" ? (target ? `#${target.number} ${target.name}` : null) : null,
-        injuryResult: modal === "casualty" ? evtInjury : null,
-      }),
+      body: JSON.stringify(body),
     });
     if (res.ok) {
-      await refreshMatch();
-      setModal(null);
-      setEvtPlayerId("");
-      setEvtTargetId("");
-      setEvtInjury("badly_hurt");
+      const real = await res.json();
+      setMatch((prev) => ({ ...prev, events: prev.events.map((e) => (e.id === tempId ? real : e)) }));
+    } else {
+      // Revert on failure
+      setMatch((prev) => ({
+        ...prev,
+        events: prev.events.filter((e) => e.id !== tempId),
+        homeScore: type === "touchdown" && side === "home" ? prev.homeScore - 1 : prev.homeScore,
+        awayScore: type === "touchdown" && side === "away" ? prev.awayScore - 1 : prev.awayScore,
+      }));
     }
-    setLoading(false);
   }
 
-  async function undoEvent(eventId: string) {
-    setLoading(true);
-    await fetch(`/api/matches/${match.id}/events/${eventId}`, { method: "DELETE" });
-    await refreshMatch();
-    setLoading(false);
+  function undoEvent(eventId: string) {
+    const evt = match.events.find((e) => e.id === eventId);
+    if (!evt) return;
+    setMatch((prev) => ({
+      ...prev,
+      events: prev.events.filter((e) => e.id !== eventId),
+      homeScore: evt.type === "touchdown" && evt.teamSide === "home" ? prev.homeScore - 1 : prev.homeScore,
+      awayScore: evt.type === "touchdown" && evt.teamSide === "away" ? prev.awayScore - 1 : prev.awayScore,
+    }));
+    fetch(`/api/matches/${match.id}/events/${eventId}`, { method: "DELETE" });
   }
 
-  async function endTurn() {
+  function endTurn() {
     const isLastTurnAway = match.turn === 8 && match.activeTeam === "away";
     if (isLastTurnAway) {
-      if (match.half === 2) {
-        setPhase("review");
-        return;
-      }
-      setPhase("halfEnd");
-      return;
+      if (match.half === 2) { setPhase("review"); return; }
+      setPhase("halfEnd"); return;
     }
-    setLoading(true);
-    await fetch(`/api/matches/${match.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "end_turn" }),
-    });
-    await refreshMatch();
-    setLoading(false);
+    const newActive = match.activeTeam === "home" ? "away" : "home";
+    const newTurn   = match.activeTeam === "away" && match.turn < 8 ? match.turn + 1 : match.turn;
+    setMatch((prev) => ({ ...prev, activeTeam: newActive, turn: newTurn }));
+    patch({ action: "end_turn" });
   }
 
-  async function startSecondHalf(receiver: "home" | "away") {
-    setLoading(true);
-    await fetch(`/api/matches/${match.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "end_half", activeTeam: receiver }),
-    });
-    await refreshMatch();
-    setLoading(false);
+  function startSecondHalf(receiver: "home" | "away") {
+    setMatch((prev) => ({ ...prev, half: 2, turn: 1, activeTeam: receiver }));
     setPhase("play");
+    patch({ action: "end_half", activeTeam: receiver });
   }
 
   async function finishMatch() {
@@ -244,8 +265,7 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
                 <button
                   key={side}
                   onClick={() => startSecondHalf(side === "home" ? "away" : "home")}
-                  disabled={loading}
-                  className="flex-1 bg-stone-800 hover:bg-stone-700 border border-stone-600 text-white rounded-xl py-3 text-sm font-medium transition-colors disabled:opacity-40"
+                  className="flex-1 bg-stone-800 hover:bg-stone-700 border border-stone-600 text-white rounded-xl py-3 text-sm font-medium transition-colors"
                 >
                   {side === "home" ? match.homeTeam.name : match.awayTeam.name}
                   <div className="text-stone-500 text-xs mt-0.5">kicks off</div>
@@ -465,8 +485,7 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
       <div className="flex gap-3">
         <button
           onClick={endTurn}
-          disabled={loading}
-          className="flex-1 bg-stone-800 hover:bg-stone-700 border border-stone-600 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+          className="flex-1 bg-stone-800 hover:bg-stone-700 border border-stone-600 text-white rounded-xl py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
         >
           <ArrowRight className="w-4 h-4" />
           {isLastTurnAway
@@ -512,7 +531,7 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
                 <span className="text-stone-600 text-xs shrink-0">H{evt.half}T{evt.turn}</span>
                 <span className="flex-1 text-xs text-stone-300 leading-snug">{formatEvent(evt, match)}</span>
                 {i === 0 && (
-                  <button onClick={() => undoEvent(evt.id)} disabled={loading} className="text-stone-600 hover:text-red-400 shrink-0 disabled:opacity-40">
+                  <button onClick={() => undoEvent(evt.id)} className="text-stone-600 hover:text-red-400 shrink-0">
                     <RotateCcw className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -619,8 +638,8 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
               <button onClick={() => setModal(null)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg py-2.5 text-sm font-medium">
                 Cancel
               </button>
-              <button onClick={logEvent} disabled={loading} className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-900 rounded-lg py-2.5 text-sm font-bold transition-colors">
-                {loading ? "Logging..." : `Log ${modal.charAt(0).toUpperCase() + modal.slice(1)}`}
+              <button onClick={logEvent} className="flex-1 bg-amber-500 hover:bg-amber-400 text-stone-900 rounded-lg py-2.5 text-sm font-bold transition-colors">
+                {`Log ${modal.charAt(0).toUpperCase() + modal.slice(1)}`}
               </button>
             </div>
           </div>
