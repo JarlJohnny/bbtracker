@@ -157,23 +157,23 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
       return;
     }
     setLoading(true);
-    const res = await fetch(`/api/matches/${match.id}`, {
+    await fetch(`/api/matches/${match.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "end_turn" }),
     });
-    if (res.ok) setMatch(await res.json());
+    await refreshMatch();
     setLoading(false);
   }
 
   async function startSecondHalf(receiver: "home" | "away") {
     setLoading(true);
-    const res = await fetch(`/api/matches/${match.id}`, {
+    await fetch(`/api/matches/${match.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "end_half", activeTeam: receiver }),
     });
-    if (res.ok) setMatch(await res.json());
+    await refreshMatch();
     setLoading(false);
     setPhase("play");
   }
