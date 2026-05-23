@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { formatGold, RACE_COLORS, SPP_LEVELS } from "@/lib/bb-data";
 import Link from "next/link";
-import { ChevronLeft, Plus, Skull, AlertTriangle, Star } from "lucide-react";
+import { ChevronLeft, Plus, Skull, AlertTriangle, Star, Play } from "lucide-react";
 import { TeamManagement } from "@/components/team-management";
 import { SkillBadge } from "@/components/skill-badge";
 
@@ -96,10 +96,16 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
         <Link
-          href={`/matches/new?homeTeamId=${team.id}`}
+          href={`/matches/new/live?homeTeamId=${team.id}`}
           className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-stone-900 font-semibold px-3 py-1.5 rounded-lg text-sm transition-colors shrink-0"
         >
-          <Plus className="w-4 h-4" /> Record Match
+          <Play className="w-4 h-4" /> Play Match
+        </Link>
+        <Link
+          href={`/matches/new?homeTeamId=${team.id}`}
+          className="flex items-center gap-1.5 bg-stone-700 hover:bg-stone-600 text-stone-200 font-semibold px-3 py-1.5 rounded-lg text-sm transition-colors shrink-0"
+        >
+          <Plus className="w-4 h-4" /> Record
         </Link>
       </div>
 
