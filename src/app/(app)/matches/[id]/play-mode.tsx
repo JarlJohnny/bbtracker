@@ -64,11 +64,26 @@ function formatEvent(evt: GameEvent, match: MatchData): string {
 type EventType = "touchdown" | "casualty" | "completion" | "interception";
 type Phase = "play" | "halfEnd" | "review";
 
+const INJURY_COLORS: Record<string, string> = {
+  badly_hurt: "bg-yellow-900/40 text-yellow-300 border-yellow-700/50",
+  mng:        "bg-orange-900/40 text-orange-300 border-orange-700/50",
+  dead:       "bg-red-900/60 text-red-300 border-red-700/60",
+  niggling:   "bg-amber-900/40 text-amber-300 border-amber-700/50",
+  "-MA":      "bg-amber-900/40 text-amber-300 border-amber-700/50",
+  "-ST":      "bg-amber-900/40 text-amber-300 border-amber-700/50",
+  "-AG":      "bg-amber-900/40 text-amber-300 border-amber-700/50",
+  "-PA":      "bg-amber-900/40 text-amber-300 border-amber-700/50",
+  "-AV":      "bg-amber-900/40 text-amber-300 border-amber-700/50",
+};
+
 export function PlayMode({ match: initial }: { match: MatchData }) {
   const router = useRouter();
   const [match, setMatch] = useState<MatchData>(initial);
   const [phase, setPhase] = useState<Phase>("play");
   const [loading, setLoading] = useState(false);
+
+  // Dugout inline edit state
+  const [editEventId, setEditEventId] = useState<string | null>(null);
 
   // Event modal state
   const [modal, setModal] = useState<EventType | null>(null);
@@ -105,6 +120,19 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
       body: JSON.stringify(body),
     });
   }, [match.id]);
+
+  function updateInjuryResult(eventId: string, injuryResult: string) {
+    setMatch((prev) => ({
+      ...prev,
+      events: prev.events.map((e) => e.id === eventId ? { ...e, injuryResult } : e),
+    }));
+    setEditEventId(null);
+    fetch(`/api/matches/${match.id}/events/${eventId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ injuryResult }),
+    });
+  }
 
   // Compute running SPP from events
   const sppByPlayer: Record<string, number> = {};
@@ -246,6 +274,9 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
   const activeName = match.activeTeam === "home" ? match.homeTeam.name : match.awayTeam.name;
   const isLastTurnAway = match.turn === 8 && match.activeTeam === "away";
   const reversedEvents = [...match.events].reverse();
+
+  // Dugout: all casualty events that tracked a target player
+  const dugoutEvents = match.events.filter((e) => e.type === "casualty" && e.targetId);
 
   // ── Half-end modal ─────────────────────────────────────────────────────────
   if (phase === "halfEnd") {
@@ -510,6 +541,49 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
                     <span className="text-stone-600 text-xs ml-1">({side})</span>
                   </span>
                   <span className="text-amber-400 font-bold ml-2 shrink-0">+{sppByPlayer[p.id]}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Dugout */}
+      {dugoutEvents.length > 0 && (
+        <div className="bg-stone-900 border border-stone-700 rounded-xl p-4">
+          <div className="text-stone-500 text-xs font-medium mb-2">Dugout</div>
+          <div className="space-y-1.5">
+            {dugoutEvents.map((evt) => {
+              const injLabel = INJURY_OPTIONS.find((o) => o.value === evt.injuryResult)?.label ?? evt.injuryResult ?? "Badly Hurt";
+              const injColor = INJURY_COLORS[evt.injuryResult ?? "badly_hurt"] ?? INJURY_COLORS.badly_hurt;
+              const teamName = evt.teamSide === "home" ? match.homeTeam.name : match.awayTeam.name;
+              return (
+                <div key={evt.id} className="flex items-center gap-2 text-xs">
+                  <span className="text-stone-500 shrink-0">H{evt.half}T{evt.turn}</span>
+                  <span className="text-stone-400 flex-1 truncate">
+                    {evt.targetName ?? "?"}
+                    <span className="text-stone-600 ml-1">({teamName})</span>
+                  </span>
+                  {editEventId === evt.id ? (
+                    <select
+                      autoFocus
+                      defaultValue={evt.injuryResult ?? "badly_hurt"}
+                      onChange={(e) => updateInjuryResult(evt.id, e.target.value)}
+                      onBlur={() => setEditEventId(null)}
+                      className="bg-stone-800 border border-stone-600 rounded px-1 py-0.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      {INJURY_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <button
+                      onClick={() => setEditEventId(evt.id)}
+                      className={`px-2 py-0.5 rounded border text-xs font-medium transition-colors hover:opacity-80 ${injColor}`}
+                    >
+                      {injLabel}
+                    </button>
+                  )}
                 </div>
               );
             })}

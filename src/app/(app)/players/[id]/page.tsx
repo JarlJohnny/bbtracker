@@ -494,6 +494,34 @@ export default function PlayerPage() {
           </button>
         </div>
       )}
+
+      {/* Revive / un-retire actions */}
+      {(player.isDead || player.isRetired) && !editing && (
+        <div className="bg-stone-900 border border-stone-700 rounded-xl p-4 space-y-3">
+          <div className="text-stone-500 text-xs">
+            {player.isDead ? "This player is dead." : "This player is retired."}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {player.isDead && (
+              <button
+                onClick={() => { if (confirm("Revive this player? (correction only)")) setStatus("isDead", false); }}
+                className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-stone-700 text-stone-400 hover:border-green-700 hover:text-green-400 transition-colors"
+              >
+                <Skull className="w-4 h-4" />
+                Revive (correction)
+              </button>
+            )}
+            {player.isRetired && (
+              <button
+                onClick={() => { if (confirm("Un-retire this player?")) setStatus("isRetired", false); }}
+                className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-stone-700 text-stone-400 hover:border-stone-500 transition-colors"
+              >
+                Un-retire
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronLeft, Plus, Skull, AlertTriangle, Star, Play } from "lucide-react";
 import { TeamManagement } from "@/components/team-management";
 import { SkillBadge } from "@/components/skill-badge";
+import { ClearMngButton } from "@/components/clear-mng-button";
 
 function statDisplay(val: number, isPa = false) {
   if (isPa && val === -1) return "-";
@@ -211,7 +212,10 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
                     </td>
                     <td className="px-2 py-2.5 text-center">
                       {player.isMissingNextGame ? (
-                        <AlertTriangle className="w-4 h-4 text-yellow-400 mx-auto" aria-label="Missing next game" />
+                        <span className="inline-flex items-center">
+                          <AlertTriangle className="w-4 h-4 text-yellow-400" aria-label="Missing next game" />
+                          <ClearMngButton playerId={player.id} />
+                        </span>
                       ) : player.isJourneyman ? (
                         <span className="text-xs text-stone-500">JM</span>
                       ) : (
