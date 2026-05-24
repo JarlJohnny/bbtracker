@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronLeft, Trophy, Swords, Target, Shield,
-  ArrowRight, RotateCcw, Flag, CheckCircle,
+  ArrowRight, RotateCcw, Flag, CheckCircle, Zap,
 } from "lucide-react";
 
 interface Player {
@@ -57,11 +57,15 @@ function formatEvent(evt: GameEvent, match: MatchData): string {
       const target = evt.targetName ?? "opponent";
       return `${actor} (${team}) caused casualty on ${target} [${inj}]`;
     }
+    case "ko": {
+      const target = evt.targetName ?? "player";
+      return `${target} (${team}) was Knocked Out`;
+    }
     default: return evt.type;
   }
 }
 
-type EventType = "touchdown" | "casualty" | "completion" | "interception";
+type EventType = "touchdown" | "casualty" | "completion" | "interception" | "ko";
 type Phase = "play" | "halfEnd" | "review";
 
 const INJURY_COLORS: Record<string, string> = {
@@ -155,7 +159,15 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
     const side = evtTeam;
     const injury = evtInjury;
 
-    const body = {
+    const body = type === "ko" ? {
+      type: "ko",
+      teamSide: evtTargetTeam,
+      playerId: null,
+      playerName: null,
+      targetId: target?.id ?? null,
+      targetName: target ? `#${target.number} ${target.name}` : null,
+      injuryResult: null,
+    } : {
       type,
       teamSide: side,
       playerId: player?.id ?? null,
@@ -263,8 +275,9 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
 
   function openModal(type: EventType) {
     const active = match.activeTeam as "home" | "away";
+    const opponent = active === "home" ? "away" : "home";
     setEvtTeam(active);
-    setEvtTargetTeam(active === "home" ? "away" : "home");
+    setEvtTargetTeam(type === "ko" ? opponent : opponent);
     setEvtPlayerId("");
     setEvtTargetId("");
     setEvtInjury("badly_hurt");
@@ -275,8 +288,9 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
   const isLastTurnAway = match.turn === 8 && match.activeTeam === "away";
   const reversedEvents = [...match.events].reverse();
 
-  // Dugout: all casualty events that tracked a target player
-  const dugoutEvents = match.events.filter((e) => e.type === "casualty" && e.targetId);
+  // Dugout: split into KO'd and injured
+  const koEvents = match.events.filter((e) => e.type === "ko" && e.targetId);
+  const injuredEvents = match.events.filter((e) => e.type === "casualty" && e.targetId);
 
   // ── Half-end modal ─────────────────────────────────────────────────────────
   if (phase === "halfEnd") {
@@ -511,6 +525,13 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
           </button>
         ))}
       </div>
+      <button
+        onClick={() => openModal("ko")}
+        className="w-full bg-stone-900 border border-stone-700 hover:border-yellow-500/50 rounded-xl py-3 flex items-center justify-center gap-2 transition-colors"
+      >
+        <Zap className="w-4 h-4 text-yellow-400" />
+        <span className="text-white text-sm font-medium">Knocked Out</span>
+      </button>
 
       {/* Turn controls */}
       <div className="flex gap-3">
@@ -549,45 +570,80 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
       )}
 
       {/* Dugout */}
-      {dugoutEvents.length > 0 && (
-        <div className="bg-stone-900 border border-stone-700 rounded-xl p-4">
-          <div className="text-stone-500 text-xs font-medium mb-2">Dugout</div>
-          <div className="space-y-1.5">
-            {dugoutEvents.map((evt) => {
-              const injLabel = INJURY_OPTIONS.find((o) => o.value === evt.injuryResult)?.label ?? evt.injuryResult ?? "Badly Hurt";
-              const injColor = INJURY_COLORS[evt.injuryResult ?? "badly_hurt"] ?? INJURY_COLORS.badly_hurt;
-              const teamName = evt.teamSide === "home" ? match.homeTeam.name : match.awayTeam.name;
-              return (
-                <div key={evt.id} className="flex items-center gap-2 text-xs">
-                  <span className="text-stone-500 shrink-0">H{evt.half}T{evt.turn}</span>
-                  <span className="text-stone-400 flex-1 truncate">
-                    {evt.targetName ?? "?"}
-                    <span className="text-stone-600 ml-1">({teamName})</span>
-                  </span>
-                  {editEventId === evt.id ? (
-                    <select
-                      autoFocus
-                      defaultValue={evt.injuryResult ?? "badly_hurt"}
-                      onChange={(e) => updateInjuryResult(evt.id, e.target.value)}
-                      onBlur={() => setEditEventId(null)}
-                      className="bg-stone-800 border border-stone-600 rounded px-1 py-0.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    >
-                      {INJURY_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <button
-                      onClick={() => setEditEventId(evt.id)}
-                      className={`px-2 py-0.5 rounded border text-xs font-medium transition-colors hover:opacity-80 ${injColor}`}
-                    >
-                      {injLabel}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      {(koEvents.length > 0 || injuredEvents.length > 0) && (
+        <div className="bg-stone-900 border border-stone-700 rounded-xl p-4 space-y-3">
+          <div className="text-stone-500 text-xs font-medium">Dugout</div>
+
+          {/* KO'd players */}
+          {koEvents.length > 0 && (
+            <div>
+              <div className="text-yellow-500/70 text-xs mb-1.5">Knocked Out</div>
+              <div className="space-y-1.5">
+                {koEvents.map((evt) => {
+                  const teamName = evt.teamSide === "home" ? match.homeTeam.name : match.awayTeam.name;
+                  return (
+                    <div key={evt.id} className="flex items-center gap-2 text-xs">
+                      <span className="text-stone-500 shrink-0">H{evt.half}T{evt.turn}</span>
+                      <span className="text-stone-400 flex-1 truncate">
+                        {evt.targetName ?? "?"}
+                        <span className="text-stone-600 ml-1">({teamName})</span>
+                      </span>
+                      <span className="bg-yellow-900/40 text-yellow-300 border border-yellow-700/50 px-2 py-0.5 rounded font-medium">KO</span>
+                      <button
+                        onClick={() => undoEvent(evt.id)}
+                        className="text-xs text-stone-500 hover:text-green-400 px-2 py-0.5 rounded border border-stone-700 hover:border-green-700/50 transition-colors"
+                      >
+                        Recovered
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Injured players */}
+          {injuredEvents.length > 0 && (
+            <div>
+              {koEvents.length > 0 && <div className="text-red-500/70 text-xs mb-1.5">Injured</div>}
+              <div className="space-y-1.5">
+                {injuredEvents.map((evt) => {
+                  const injLabel = INJURY_OPTIONS.find((o) => o.value === evt.injuryResult)?.label ?? evt.injuryResult ?? "Badly Hurt";
+                  const injColor = INJURY_COLORS[evt.injuryResult ?? "badly_hurt"] ?? INJURY_COLORS.badly_hurt;
+                  const teamName = evt.teamSide === "home" ? match.homeTeam.name : match.awayTeam.name;
+                  return (
+                    <div key={evt.id} className="flex items-center gap-2 text-xs">
+                      <span className="text-stone-500 shrink-0">H{evt.half}T{evt.turn}</span>
+                      <span className="text-stone-400 flex-1 truncate">
+                        {evt.targetName ?? "?"}
+                        <span className="text-stone-600 ml-1">({teamName})</span>
+                      </span>
+                      {editEventId === evt.id ? (
+                        <select
+                          autoFocus
+                          defaultValue={evt.injuryResult ?? "badly_hurt"}
+                          onChange={(e) => updateInjuryResult(evt.id, e.target.value)}
+                          onBlur={() => setEditEventId(null)}
+                          className="bg-stone-800 border border-stone-600 rounded px-1 py-0.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        >
+                          {INJURY_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <button
+                          onClick={() => setEditEventId(evt.id)}
+                          className={`px-2 py-0.5 rounded border text-xs font-medium transition-colors hover:opacity-80 ${injColor}`}
+                        >
+                          {injLabel}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -622,40 +678,77 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
           onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}
         >
           <div className="bg-stone-900 border border-stone-700 rounded-xl w-full max-w-md p-5 space-y-4">
-            <h2 className="text-white font-semibold capitalize">{modal}</h2>
+            <h2 className="text-white font-semibold">
+              {modal === "ko" ? "Knocked Out" : modal.charAt(0).toUpperCase() + modal.slice(1)}
+            </h2>
 
-            {/* Team selector */}
-            <div>
-              <label className="block text-stone-400 text-xs mb-1.5">
-                {modal === "casualty" ? "Caused by" : "Team"}
-              </label>
-              <div className="flex gap-2">
-                {(["home", "away"] as const).map((side) => (
-                  <button
-                    key={side}
-                    onClick={() => { setEvtTeam(side); setEvtPlayerId(""); }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${evtTeam === side ? "bg-amber-500 text-stone-900 border-amber-500" : "bg-stone-800 text-stone-300 border-stone-600 hover:border-stone-500"}`}
+            {/* KO modal: just pick the KO'd player */}
+            {modal === "ko" && (
+              <>
+                <div>
+                  <label className="block text-stone-400 text-xs mb-1.5">Team</label>
+                  <div className="flex gap-2">
+                    {(["home", "away"] as const).map((side) => (
+                      <button
+                        key={side}
+                        onClick={() => { setEvtTargetTeam(side); setEvtTargetId(""); }}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${evtTargetTeam === side ? "bg-yellow-900/40 text-yellow-300 border-yellow-700/50" : "bg-stone-800 text-stone-300 border-stone-600 hover:border-stone-500"}`}
+                      >
+                        {side === "home" ? match.homeTeam.name : match.awayTeam.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-stone-400 text-xs mb-1.5">Player knocked out (optional)</label>
+                  <select
+                    value={evtTargetId}
+                    onChange={(e) => setEvtTargetId(e.target.value)}
+                    className="w-full bg-stone-800 border border-stone-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    {side === "home" ? match.homeTeam.name : match.awayTeam.name}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    <option value="">Not tracked</option>
+                    {(evtTargetTeam === "home" ? match.homeTeam.players : match.awayTeam.players).map((p) => (
+                      <option key={p.id} value={p.id}>#{p.number} {p.name} — {p.position}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
-            {/* Player selector */}
-            <div>
-              <label className="block text-stone-400 text-xs mb-1.5">Player (optional)</label>
-              <select
-                value={evtPlayerId}
-                onChange={(e) => setEvtPlayerId(e.target.value)}
-                className="w-full bg-stone-800 border border-stone-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                <option value="">Not tracked</option>
-                {(evtTeam === "home" ? match.homeTeam.players : match.awayTeam.players).map((p) => (
-                  <option key={p.id} value={p.id}>#{p.number} {p.name} — {p.position}</option>
-                ))}
-              </select>
-            </div>
+            {/* Non-KO: team + player selectors */}
+            {modal !== "ko" && (
+              <>
+                <div>
+                  <label className="block text-stone-400 text-xs mb-1.5">
+                    {modal === "casualty" ? "Caused by" : "Team"}
+                  </label>
+                  <div className="flex gap-2">
+                    {(["home", "away"] as const).map((side) => (
+                      <button
+                        key={side}
+                        onClick={() => { setEvtTeam(side); setEvtPlayerId(""); }}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${evtTeam === side ? "bg-amber-500 text-stone-900 border-amber-500" : "bg-stone-800 text-stone-300 border-stone-600 hover:border-stone-500"}`}
+                      >
+                        {side === "home" ? match.homeTeam.name : match.awayTeam.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-stone-400 text-xs mb-1.5">Player (optional)</label>
+                  <select
+                    value={evtPlayerId}
+                    onChange={(e) => setEvtPlayerId(e.target.value)}
+                    className="w-full bg-stone-800 border border-stone-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">Not tracked</option>
+                    {(evtTeam === "home" ? match.homeTeam.players : match.awayTeam.players).map((p) => (
+                      <option key={p.id} value={p.id}>#{p.number} {p.name} — {p.position}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
             {/* Casualty: target */}
             {modal === "casualty" && (
@@ -713,7 +806,7 @@ export function PlayMode({ match: initial }: { match: MatchData }) {
                 Cancel
               </button>
               <button onClick={logEvent} className="flex-1 bg-amber-500 hover:bg-amber-400 text-stone-900 rounded-lg py-2.5 text-sm font-bold transition-colors">
-                {`Log ${modal.charAt(0).toUpperCase() + modal.slice(1)}`}
+                {modal === "ko" ? "Log KO" : `Log ${modal.charAt(0).toUpperCase() + modal.slice(1)}`}
               </button>
             </div>
           </div>
