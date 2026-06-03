@@ -7,12 +7,14 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?
   name          String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   teams         Team[]
   leagueMembers LeagueMember[]
