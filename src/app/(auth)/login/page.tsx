@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Shield, Eye, EyeOff } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const raw = searchParams.get("callbackUrl") ?? "/dashboard";
@@ -125,5 +125,27 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4 bg-stone-950">
+      <div className="w-full max-w-sm text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-500/10 mb-4">
+          <Shield className="w-7 h-7 text-amber-400" />
+        </div>
+        <h1 className="text-2xl font-bold text-white">BB Tracker</h1>
+        <p className="text-stone-400 mt-1 text-sm">Sign in to manage your leagues</p>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
   );
 }
