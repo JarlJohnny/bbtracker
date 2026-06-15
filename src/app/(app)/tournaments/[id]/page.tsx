@@ -51,6 +51,7 @@ interface MyTeam {
   id: string;
   name: string;
   race: string;
+  user: { id: string; name: string };
 }
 
 export default function TournamentPage() {
@@ -64,7 +65,7 @@ export default function TournamentPage() {
 
   function load() {
     fetch(`/api/tournaments/${params.id}`).then((r) => r.json()).then(setT);
-    fetch("/api/teams").then((r) => r.json()).then(setMyTeams);
+    fetch("/api/teams/all").then((r) => r.json()).then(setMyTeams);
   }
 
   useEffect(() => { load(); }, [params.id]);
@@ -205,7 +206,7 @@ export default function TournamentPage() {
             >
               <option value="">Select a team...</option>
               {teamsAvailable.map((mt) => (
-                <option key={mt.id} value={mt.id}>{mt.name} ({mt.race})</option>
+                <option key={mt.id} value={mt.id}>{mt.name} ({mt.race}) — {mt.user.name}</option>
               ))}
             </select>
             <button

@@ -32,6 +32,7 @@ interface MyTeam {
   name: string;
   race: string;
   leagueId: string | null;
+  user: { id: string; name: string };
 }
 
 export default function LeaguePage() {
@@ -45,7 +46,7 @@ export default function LeaguePage() {
 
   function load() {
     fetch(`/api/leagues/${params.id}`).then((r) => r.json()).then(setLeague);
-    fetch("/api/teams").then((r) => r.json()).then(setMyTeams);
+    fetch("/api/teams/all").then((r) => r.json()).then(setMyTeams);
   }
 
   useEffect(() => { load(); }, [params.id]);
@@ -156,7 +157,7 @@ export default function LeaguePage() {
             >
               <option value="">Select a team...</option>
               {teamsNotInLeague.map((t) => (
-                <option key={t.id} value={t.id}>{t.name} ({t.race})</option>
+                <option key={t.id} value={t.id}>{t.name} ({t.race}) — {t.user.name}</option>
               ))}
             </select>
             <button
