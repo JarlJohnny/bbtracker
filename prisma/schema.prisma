@@ -19,6 +19,43 @@ model User {
   teams         Team[]
   leagueMembers LeagueMember[]
   createdLeagues League[]
+  createdTournaments Tournament[]
+}
+
+model Tournament {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      String   @default("setup")
+  format      String   @default("round_robin")
+  doubleRound Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id])
+
+  entries     TournamentEntry[]
+  matches     Match[]
+}
+
+model TournamentEntry {
+  id                String @id @default(cuid())
+  wins              Int    @default(0)
+  draws             Int    @default(0)
+  losses            Int    @default(0)
+  touchdownsFor     Int    @default(0)
+  touchdownsAgainst Int    @default(0)
+  casualtiesFor     Int    @default(0)
+  points            Int    @default(0)
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  teamId       String
+  team         Team       @relation(fields: [teamId], references: [id])
+
+  @@unique([tournamentId, teamId])
 }
 
 model League {
@@ -82,6 +119,7 @@ model Team {
   players          Player[]
   homeMatches      Match[]  @relation("HomeTeam")
   awayMatches      Match[]  @relation("AwayTeam")
+  tournamentEntries TournamentEntry[]
 }
 
 model Player {
@@ -137,6 +175,9 @@ model Match {
 
   leagueId    String?
   league      League?   @relation(fields: [leagueId], references: [id])
+
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
 
   playerStats MatchPlayerStat[]
   events      GameEvent[]

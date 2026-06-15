@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { Shield, Swords, Trophy, Users, LogOut, Menu, X } from "lucide-react";
+import { Shield, Swords, Trophy, Medal, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: Shield },
   { href: "/teams", label: "My Teams", icon: Swords },
   { href: "/leagues", label: "Leagues", icon: Trophy },
+  { href: "/tournaments", label: "Tournaments", icon: Medal },
 ];
 
 export function Navbar() {
