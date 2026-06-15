@@ -12,13 +12,8 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // All signed-in users can browse every league.
   const leagues = await prisma.league.findMany({
-    where: {
-      OR: [
-        { creatorId: session.user.id },
-        { members: { some: { userId: session.user.id } } },
-      ],
-    },
     include: {
       creator: { select: { name: true, email: true } },
       _count: { select: { teams: true, matches: true, members: true } },

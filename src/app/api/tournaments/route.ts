@@ -13,13 +13,8 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // All signed-in users can browse every tournament.
   const tournaments = await prisma.tournament.findMany({
-    where: {
-      OR: [
-        { creatorId: session.user.id },
-        { entries: { some: { team: { userId: session.user.id } } } },
-      ],
-    },
     include: {
       creator: { select: { name: true, email: true } },
       _count: { select: { entries: true, matches: true } },

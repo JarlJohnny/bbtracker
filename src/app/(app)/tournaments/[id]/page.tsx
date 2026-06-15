@@ -234,7 +234,7 @@ export default function TournamentPage() {
                   <th className="text-center px-2 py-2 text-stone-400 font-medium text-xs">TF</th>
                   <th className="text-center px-2 py-2 text-stone-400 font-medium text-xs">TA</th>
                   <th className="text-center px-2 py-2 text-stone-400 font-medium text-xs">Cas</th>
-                  <th className="text-left px-2 py-2 text-stone-400 font-medium text-xs hidden sm:table-cell">Coach</th>
+                  <th className="text-left px-2 py-2 text-stone-400 font-medium text-xs">Coach</th>
                   {t.isCreator && t.status === "setup" && <th className="px-2 py-2"></th>}
                 </tr>
               </thead>
@@ -260,7 +260,7 @@ export default function TournamentPage() {
                     <td className="px-2 py-2.5 text-center text-white">{e.touchdownsFor}</td>
                     <td className="px-2 py-2.5 text-center text-stone-400">{e.touchdownsAgainst}</td>
                     <td className="px-2 py-2.5 text-center text-stone-400">{e.casualtiesFor}</td>
-                    <td className="px-2 py-2.5 text-stone-400 text-xs hidden sm:table-cell">{e.team.user.name}</td>
+                    <td className="px-2 py-2.5 text-stone-400 text-xs">{e.team.user.name}</td>
                     {t.isCreator && t.status === "setup" && (
                       <td className="px-2 py-2.5 text-center">
                         <button onClick={() => removeTeam(e.teamId)} className="text-stone-600 hover:text-red-400">

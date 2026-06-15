@@ -9,14 +9,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const tournament = await prisma.tournament.findFirst({
-    where: {
-      id,
-      OR: [
-        { creatorId: session.user.id },
-        { entries: { some: { team: { userId: session.user.id } } } },
-      ],
-    },
+  // Any signed-in user can view a tournament; editing stays creator-only.
+  const tournament = await prisma.tournament.findUnique({
+    where: { id },
     include: {
       creator: { select: { id: true, name: true, email: true } },
       entries: {

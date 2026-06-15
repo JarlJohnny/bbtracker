@@ -12,6 +12,7 @@ interface League {
   description: string | null;
   status: string;
   season: number;
+  isCreator: boolean;
   creator: { name: string; email: string };
   members: { id: string; role: string; user: { id: string; name: string; email: string } }[];
   teams: {
@@ -103,12 +104,12 @@ export default function LeaguePage() {
         </div>
 
         <div className="flex gap-2 shrink-0">
-          {league.status === "setup" && (
+          {league.isCreator && league.status === "setup" && (
             <button onClick={() => setStatus("active")} className="flex items-center gap-1.5 text-sm bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg transition-colors">
               <Play className="w-3.5 h-3.5" /> Start
             </button>
           )}
-          {league.status === "active" && (
+          {league.isCreator && league.status === "active" && (
             <button onClick={() => setStatus("finished")} className="flex items-center gap-1.5 text-sm bg-stone-700 hover:bg-stone-600 text-white px-3 py-1.5 rounded-lg transition-colors">
               <CheckCircle className="w-3.5 h-3.5" /> Finish
             </button>
@@ -136,12 +137,14 @@ export default function LeaguePage() {
           <h2 className="font-semibold text-white flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-400" /> Standings
           </h2>
-          <button
-            onClick={() => setAddingTeam(!addingTeam)}
-            className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add team
-          </button>
+          {league.isCreator && (
+            <button
+              onClick={() => setAddingTeam(!addingTeam)}
+              className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add team
+            </button>
+          )}
         </div>
 
         {addingTeam && (
@@ -181,7 +184,7 @@ export default function LeaguePage() {
                   <th className="text-center px-2 py-2 text-stone-400 font-medium text-xs">L</th>
                   <th className="text-center px-2 py-2 text-stone-400 font-medium text-xs">TF</th>
                   <th className="text-center px-2 py-2 text-stone-400 font-medium text-xs">TA</th>
-                  <th className="text-left px-2 py-2 text-stone-400 font-medium text-xs hidden sm:table-cell">Coach</th>
+                  <th className="text-left px-2 py-2 text-stone-400 font-medium text-xs">Coach</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,7 +208,7 @@ export default function LeaguePage() {
                     <td className="px-2 py-2.5 text-center text-red-400">{team.losses}</td>
                     <td className="px-2 py-2.5 text-center text-white">{team.touchdownsFor}</td>
                     <td className="px-2 py-2.5 text-center text-stone-400">{team.touchdownsAgainst}</td>
-                    <td className="px-2 py-2.5 text-stone-400 text-xs hidden sm:table-cell">{team.user.name}</td>
+                    <td className="px-2 py-2.5 text-stone-400 text-xs">{team.user.name}</td>
                   </tr>
                 ))}
               </tbody>

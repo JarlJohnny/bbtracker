@@ -4,16 +4,10 @@ import Link from "next/link";
 import { Plus, Trophy } from "lucide-react";
 
 export default async function LeaguesPage() {
-  const session = await auth();
-  const userId = session!.user!.id!;
+  await auth();
 
+  // All signed-in users can browse every league.
   const leagues = await prisma.league.findMany({
-    where: {
-      OR: [
-        { creatorId: userId },
-        { members: { some: { userId } } },
-      ],
-    },
     include: {
       creator: { select: { name: true } },
       _count: { select: { teams: true, matches: true } },

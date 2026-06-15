@@ -4,16 +4,10 @@ import Link from "next/link";
 import { Plus, Medal } from "lucide-react";
 
 export default async function TournamentsPage() {
-  const session = await auth();
-  const userId = session!.user!.id!;
+  await auth();
 
+  // All signed-in users can browse every tournament.
   const tournaments = await prisma.tournament.findMany({
-    where: {
-      OR: [
-        { creatorId: userId },
-        { entries: { some: { team: { userId } } } },
-      ],
-    },
     include: {
       creator: { select: { name: true } },
       _count: { select: { entries: true, matches: true } },

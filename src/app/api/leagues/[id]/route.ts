@@ -8,14 +8,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const league = await prisma.league.findFirst({
-    where: {
-      id,
-      OR: [
-        { creatorId: session.user.id },
-        { members: { some: { userId: session.user.id } } },
-      ],
-    },
+  // Any signed-in user can view a league; editing stays creator-only (PATCH below).
+  const league = await prisma.league.findUnique({
+    where: { id },
     include: {
       creator: { select: { name: true, email: true } },
       members: { include: { user: { select: { id: true, name: true, email: true } } } },
@@ -31,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   });
 
   if (!league) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(league);
+  return NextResponse.json({ ...league, isCreator: league.creatorId === session.user.id });
 }
 
 const updateSchema = z.object({
