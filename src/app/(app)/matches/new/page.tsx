@@ -12,6 +12,7 @@ interface Team {
   race: string;
   leagueId: string | null;
   players: Player[];
+  user: { name: string };
 }
 
 interface League {
@@ -77,7 +78,7 @@ function NewMatchForm() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/teams").then((r) => r.json()).then((teams) => {
+    fetch("/api/teams/all").then((r) => r.json()).then((teams) => {
       setMyTeams(teams);
       setAllTeams(teams);
     });
@@ -216,7 +217,7 @@ function NewMatchForm() {
         <div className="bg-stone-900 border border-stone-700 rounded-xl p-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-stone-300 mb-1">Home Team (yours)</label>
+              <label className="block text-sm font-medium text-stone-300 mb-1">Home Team</label>
               <select
                 value={homeTeamId}
                 onChange={(e) => setHomeTeamId(e.target.value)}
@@ -224,7 +225,7 @@ function NewMatchForm() {
                 className="w-full bg-stone-800 border border-stone-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
                 <option value="">Select team...</option>
-                {myTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {myTeams.map((t) => <option key={t.id} value={t.id}>{t.name} — {t.user.name}</option>)}
               </select>
             </div>
             <div>
@@ -237,7 +238,7 @@ function NewMatchForm() {
               >
                 <option value="">Select team...</option>
                 {allTeams.filter((t) => t.id !== homeTeamId).map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option key={t.id} value={t.id}>{t.name} — {t.user.name}</option>
                 ))}
               </select>
             </div>

@@ -43,8 +43,13 @@ export async function POST(req: NextRequest) {
     homePlayerStats, awayPlayerStats,
   } = parsed.data;
 
-  const homeTeam = await prisma.team.findFirst({ where: { id: homeTeamId, userId: session.user.id } });
-  if (!homeTeam) return NextResponse.json({ error: "Home team not found or not yours" }, { status: 403 });
+  // Any signed-in coach can record a match, including one between two other
+  // coaches' teams (the registrant may not be the home coach).
+  const homeTeam = await prisma.team.findFirst({ where: { id: homeTeamId } });
+  if (!homeTeam) return NextResponse.json({ error: "Home team not found" }, { status: 404 });
+
+  const awayTeam = await prisma.team.findFirst({ where: { id: awayTeamId } });
+  if (!awayTeam) return NextResponse.json({ error: "Away team not found" }, { status: 404 });
 
   const allStats = [...homePlayerStats, ...awayPlayerStats];
 
