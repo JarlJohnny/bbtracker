@@ -53,8 +53,16 @@ export async function POST(req: NextRequest) {
 
   const allStats = [...homePlayerStats, ...awayPlayerStats];
 
-  const match = await prisma.$transaction(async (tx) => {
-    const match = await tx.match.create({
+  const homeWin = homeScore > awayScore;
+  const awayWin = awayScore > homeScore;
+  const draw = homeScore === awayScore;
+  const homeCasualties = homePlayerStats.reduce((s, p) => s + p.casualties, 0);
+  const awayCasualties = awayPlayerStats.reduce((s, p) => s + p.casualties, 0);
+
+  // Sequential writes (no interactive transaction): the libsql/Turso adapter
+  // hangs on long interactive transactions, same as the finish route.
+  try {
+    const match = await prisma.match.create({
       data: {
         homeTeamId,
         awayTeamId,
@@ -71,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     for (const stat of allStats) {
       const sppEarned = calculateSppEarned(stat);
-      await tx.matchPlayerStat.create({
+      await prisma.matchPlayerStat.create({
         data: {
           matchId: match.id,
           playerId: stat.playerId,
@@ -84,23 +92,17 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      const player = await tx.player.findUnique({ where: { id: stat.playerId } });
+      const player = await prisma.player.findUnique({ where: { id: stat.playerId } });
       if (player && !player.isDead && !player.isRetired) {
         const newSpp = player.spp + sppEarned;
-        await tx.player.update({
+        await prisma.player.update({
           where: { id: stat.playerId },
           data: { spp: newSpp, level: calculateLevel(newSpp) },
         });
       }
     }
 
-    const homeWin = homeScore > awayScore;
-    const awayWin = awayScore > homeScore;
-    const draw = homeScore === awayScore;
-    const homeCasualties = homePlayerStats.reduce((s, p) => s + p.casualties, 0);
-    const awayCasualties = awayPlayerStats.reduce((s, p) => s + p.casualties, 0);
-
-    await tx.team.update({
+    await prisma.team.update({
       where: { id: homeTeamId },
       data: {
         wins: { increment: homeWin ? 1 : 0 },
@@ -114,7 +116,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await tx.team.update({
+    await prisma.team.update({
       where: { id: awayTeamId },
       data: {
         wins: { increment: awayWin ? 1 : 0 },
@@ -128,8 +130,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return match;
-  });
-
-  return NextResponse.json(match, { status: 201 });
+    return NextResponse.json(match, { status: 201 });
+  } catch (err) {
+    console.error("record match error:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

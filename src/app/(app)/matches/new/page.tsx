@@ -139,31 +139,36 @@ function NewMatchForm() {
     setError("");
     setLoading(true);
 
-    const res = await fetch("/api/matches", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        homeTeamId,
-        awayTeamId,
-        homeScore,
-        awayScore,
-        homeGold,
-        awayGold,
-        notes,
-        leagueId: leagueId || undefined,
-        homePlayerStats: homeStats,
-        awayPlayerStats: awayStats,
-      }),
-    });
+    try {
+      const res = await fetch("/api/matches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          homeTeamId,
+          awayTeamId,
+          homeScore,
+          awayScore,
+          homeGold,
+          awayGold,
+          notes,
+          leagueId: leagueId || undefined,
+          homePlayerStats: homeStats,
+          awayPlayerStats: awayStats,
+        }),
+      });
 
-    setLoading(false);
-    if (!res.ok) {
-      const data = await res.json();
-      setError(typeof data.error === "string" ? data.error : "Failed to record match");
-      return;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === "string" ? data.error : "Failed to record match");
+        return;
+      }
+
+      router.push(leagueId ? `/leagues/${leagueId}` : `/teams/${homeTeamId}`);
+    } catch {
+      setError("Network error — please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    router.push(leagueId ? `/leagues/${leagueId}` : `/teams/${homeTeamId}`);
   }
 
   function PlayerStatRow({ player, stat, isHome }: { player: Player; stat: PlayerStat; isHome: boolean }) {

@@ -34,13 +34,14 @@ export async function POST(
   const awayWin = awayScore > homeScore;
   const draw = homeScore === awayScore;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.match.update({
+  // Batch (array) transaction rather than an interactive one: the libsql/Turso
+  // adapter hangs on long interactive transactions.
+  await prisma.$transaction([
+    prisma.match.update({
       where: { id: matchId },
       data: { homeScore, awayScore, status: "completed", playedAt: new Date() },
-    });
-
-    await tx.tournamentEntry.update({
+    }),
+    prisma.tournamentEntry.update({
       where: { tournamentId_teamId: { tournamentId: id, teamId: match.homeTeamId } },
       data: {
         wins: { increment: homeWin ? 1 : 0 },
@@ -51,9 +52,8 @@ export async function POST(
         casualtiesFor: { increment: homeCasualties },
         points: { increment: homeWin ? 3 : draw ? 1 : 0 },
       },
-    });
-
-    await tx.tournamentEntry.update({
+    }),
+    prisma.tournamentEntry.update({
       where: { tournamentId_teamId: { tournamentId: id, teamId: match.awayTeamId } },
       data: {
         wins: { increment: awayWin ? 1 : 0 },
@@ -64,8 +64,8 @@ export async function POST(
         casualtiesFor: { increment: awayCasualties },
         points: { increment: awayWin ? 3 : draw ? 1 : 0 },
       },
-    });
-  });
+    }),
+  ]);
 
   return NextResponse.json({ ok: true });
 }

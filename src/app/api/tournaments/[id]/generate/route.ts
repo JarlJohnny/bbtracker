@@ -22,20 +22,20 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     tournament.doubleRound,
   );
 
-  await prisma.$transaction(async (tx) => {
-    for (const p of pairings) {
-      await tx.match.create({
-        data: {
-          homeTeamId: p.homeTeamId,
-          awayTeamId: p.awayTeamId,
-          tournamentId: id,
-          round: p.round,
-          status: "scheduled",
-        },
-      });
-    }
-    await tx.tournament.update({ where: { id }, data: { status: "active" } });
-  });
+  // Batch (array) transaction rather than an interactive one: the libsql/Turso
+  // adapter hangs on long interactive transactions.
+  await prisma.$transaction([
+    prisma.match.createMany({
+      data: pairings.map((p) => ({
+        homeTeamId: p.homeTeamId,
+        awayTeamId: p.awayTeamId,
+        tournamentId: id,
+        round: p.round,
+        status: "scheduled",
+      })),
+    }),
+    prisma.tournament.update({ where: { id }, data: { status: "active" } }),
+  ]);
 
   return NextResponse.json({ ok: true, matches: pairings.length });
 }
